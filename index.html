@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIFF Demo App (検証版)</title>
+    <title>LIFF Demo App (強制ログイン版)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
         .status { padding: 10px; border-radius: 5px; font-weight: bold; white-space: pre-wrap; }
@@ -37,9 +37,8 @@
                 receivedFrom = "フラグメント(#)";
                 const hashParams = new URLSearchParams(window.location.hash.substring(1));
                 finalRedirectUrl = hashParams.get('redirect_uri');
-            } 
-            // クエリパラメータ(?)があれば、それを解釈
-            else if (window.location.search) {
+            } else if (window.location.search) {
+                // クエリパラメータ(?)があれば、それを解釈
                 receivedFrom = "クエリパラメータ(?)";
                 const params = new URLSearchParams(window.location.search);
                 finalRedirectUrl = params.get('redirect_uri');
@@ -48,25 +47,33 @@
             // 受け取ったデータを表示
             if (finalRedirectUrl) {
                 const decodedData = decodeURIComponent(finalRedirectUrl);
-                document.getElementById('data').innerHTML = 
+                document.getElementById('data').innerHTML =
                     `<b>取得元:</b> ${receivedFrom}<br>` +
                     `<b>エンコード済みの値:</b> ${finalRedirectUrl}<br>` +
                     `<b>デコード後の値:</b> ${decodedData}`;
             } else {
-                 document.getElementById('data').innerText = `データはありませんでした。`;
+                document.getElementById('data').innerText = `データはありませんでした。`;
             }
 
-            // --- LIFFの初期化 ---
+            // --- LIFFの初期化（外部ブラウザで必ず認可を走らせる）---
+            const liffId = "2007624426-93P1xyXj"; // ★ 本番では環境変数などで管理を推奨
+
             try {
-                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-                const liffId = "2007624426-93P1xyXj";
-                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-                await liff.init({ liffId: liffId });
+                await liff.init({
+                    liffId,
+                    withLoginOnExternalBrowser: true // ← ここがポイント：外部ブラウザで認可フローを強制
+                });
+
+                // 未ログインなら明示的にログイン要求（念のため）
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return; // 以降の処理はリダイレクト後に実行
+                }
+
                 document.getElementById('status').className = "status success";
-                document.getElementById('status').innerText = 'liff.init() 成功！';
+                document.getElementById('status').innerText = 'liff.init() 成功！ (ログイン済)';
             } catch (error) {
                 document.getElementById('status').className = "status error";
-                // エラーオブジェクトの内容を詳しく表示
                 document.getElementById('status').innerText = 'liff.init() 失敗！\n\n' + JSON.stringify(error, null, 2);
                 console.error("liff.init() failed", error);
             }
