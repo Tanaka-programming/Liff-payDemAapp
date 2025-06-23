@@ -1,82 +1,88 @@
-<!-- =============================== ② LIFF-DEMO.HTML (v11) ====================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LIFF Demo – login‑loop & 400 safe (v11)</title>
-  <style>
-    body{font-family:sans-serif;max-width:820px;margin:auto;padding:1.5rem;background:#fff;line-height:1.6;}
-    .box{padding:1rem;border:1px solid #ccc;border-radius:.6rem;margin-top:1rem;background:#f9f9f9;}
-    .ok{background:#dff0d8;border-color:#bfe7b9;}
-    .ng{background:#f2dede;border-color:#e3c4c4;}
-    code{white-space:pre-wrap;word-break:break-all;}
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LIFF Demo - v12 (Corrected)</title>
+    <style>
+        body { font-family: sans-serif; max-width: 820px; margin: auto; padding: 1.5rem; background: #fff; line-height: 1.6; }
+        .box { padding: 1rem; border: 1px solid #ccc; border-radius: .6rem; margin-top: 1rem; background: #f9f9f9; }
+        .ok { background: #dff0d8; border-color: #bfe7b9; }
+        .ng { background: #f2dede; border-color: #e3c4c4; }
+        code { white-space: pre-wrap; word-break: break-all; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
+    </style>
 </head>
 <body>
-  <h1>LIFF Demo – 400 と無限ログインを防止</h1>
-  <p>URL(before): <code id="urlBefore"></code></p>
-  <p>URL(after):  <code id="urlAfter"></code></p>
+    <h1>LIFF Demo - 修正版 (v12)</h1>
+    <p>遷移前の元URL: <code id="urlBefore"></code></p>
+    
+    <h2>抽出された redirect_uri データ</h2>
+    <div id="resultData" class="box">(データなし)</div>
 
-  <h2>redirect_uri 抽出</h2>
-  <div id="raw" class="box">(none)</div>
+    <h2>LIFF 初期化ステータス</h2>
+    <div id="status" class="box">初期化処理を開始します...</div>
 
-  <h2>LIFF 初期化ステータス</h2>
-  <div id="status" class="box">init 未実行…</div>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script>
+        (async () => {
+            // --- 定数とDOM要素の準備 ---
+            const LIFF_ID = '2007624426-93P1xyXj';
+            const resultEl = document.getElementById('resultData');
+            const statusEl = document.getElementById('status');
+            const urlBeforeEl = document.getElementById('urlBefore');
+            
+            // ページ読み込み時のURLを記録
+            const initialUrl = window.location.href;
+            urlBeforeEl.textContent = initialUrl;
 
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script>
-    (async()=>{
-      const LIFF_ID      = '2007624426-93P1xyXj';
-      // 開発者コンソール登録と完全一致させるため、末尾スラッシュも保持
-      const CLEAN_URL    = location.origin + location.pathname; // サブパス対応
-      const didLoginFlag = 'paypay_demo_didLogin';
+            // --- メイン処理 ---
+            try {
+                // 1. URLからデータを抽出し、sessionStorageに保存
+                //    この処理は liff.init の前でも後でも問題ありません。
+                const url = new URL(initialUrl);
+                let redirectUriValue = null;
+                if (url.hash) {
+                    redirectUriValue = new URLSearchParams(url.hash.slice(1)).get('redirect_uri');
+                }
+                if (!redirectUriValue) {
+                    redirectUriValue = url.searchParams.get('redirect_uri');
+                }
+                if (redirectUriValue) {
+                    sessionStorage.setItem('paypayResult', redirectUriValue);
+                }
 
-      /* DOM */
-      const beforeEl = document.getElementById('urlBefore');
-      const afterEl  = document.getElementById('urlAfter');
-      const rawBox   = document.getElementById('raw');
-      const stBox    = document.getElementById('status');
-      beforeEl.textContent = location.href;
+                // 2. liff.init()の実行
+                //    URLのクリーニングは不要です。liff.initが内部で適切に処理します。
+                //    認証が必要な場合は、このawaitの間に自動でログイン画面へ遷移し、戻ってきます。
+                statusEl.textContent = 'liff.init() を実行中...';
+                await liff.init({ liffId: LIFF_ID });
 
-      /* 1. fragment / query → sessionStorage */
-      let val=null;
-      const u = new URL(location.href);
-      if(u.hash){val=new URLSearchParams(u.hash.slice(1)).get('redirect_uri');}
-      if(!val){val=u.searchParams.get('redirect_uri');}
-      if(val){sessionStorage.setItem('paypayResult',val);rawBox.textContent=val;}
+                // 3. ログイン状態の確認と最終処理
+                if (liff.isLoggedIn()) {
+                    statusEl.textContent = 'liff.init() & ログイン成功！';
+                    statusEl.classList.add('ok');
 
-      /* 2. URL を CLEAN_URL に固定 (余計なクエリ/ハッシュを除去) */
-      history.replaceState(null,'',CLEAN_URL);
+                    // sessionStorageからデータを読み込んで表示
+                    const finalData = sessionStorage.getItem('paypayResult');
+                    if (finalData) {
+                        resultEl.textContent = decodeURIComponent(finalData);
+                    } else {
+                        resultEl.textContent = '(sessionStorageにデータがありません)';
+                    }
+                } else {
+                    // ユーザーがログイン画面でキャンセルした場合など
+                    statusEl.textContent = '未ログイン状態です。認可されなかったか、ログインがキャンセルされました。';
+                    statusEl.classList.add('ng');
+                }
 
-      /* 3. liff.init (標準フロー) */
-      await liff.init({ liffId: LIFF_ID });
-
-      /* 4. liff.ready を待ってログイン状態を確認 */
-      await liff.ready;
-      if(!liff.isLoggedIn()){
-        // 無限ループ防止: まだ login していなければ 1 回だけ外部ブラウザへ
-        if(!sessionStorage.getItem(didLoginFlag)){
-          sessionStorage.setItem(didLoginFlag,'1');
-          liff.login({ redirectUri: CLEAN_URL });
-          return; // ログインへ遷移
-        }
-        // 既に外部ブラウザ往復したのに未ログイン → エラーメッセージ
-        stBox.textContent='ログイン失敗 (cookie ブロック? )';
-        stBox.classList.add('ng');
-        return;
-      }
-
-      /* 5. 成功処理 */
-      stBox.textContent='liff.init() & login 完了';
-      stBox.classList.add('ok');
-      afterEl.textContent = location.href;
-
-      // 余計な _ldci クエリが付いたら再度クリーンに
-      if(location.search){
-        history.replaceState(null,'',CLEAN_URL);
-      }
-    })();
-  </script>
+            } catch (error) {
+                // liff.init()自体が失敗した場合 (設定ミスなど)
+                statusEl.textContent = 'liff.init() で致命的なエラーが発生しました。\n\n' + JSON.stringify(error, null, 2);
+                statusEl.classList.add('ng');
+                console.error('LIFF Initialization failed:', error);
+            }
+        })();
+    </script>
 </body>
 </html>
