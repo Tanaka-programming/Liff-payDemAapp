@@ -1,6 +1,6 @@
-<!-- ============================================================= -->
-<!--  ② LIFF‑DEMO.HTML                                            -->
-<!-- ============================================================= -->
+<!-- ============================================================================================== -->
+<!-- ② LIFF‑DEMO.HTML                                                                                 -->
+<!-- ============================================================================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -16,50 +16,91 @@
   </style>
 </head>
 <body>
-  <h1>LIFF Demo ‑ 二重エンコード検証</h1>
-  <p>現在 URL: <code id="url"></code></p>
+  <h1>LIFF Demo – init 前後の URL と redirect_uri を確認</h1>
+  <p>起動直後 URL: <code id="urlBefore"></code></p>
+  <p>init 完了後 URL: <code id="urlAfter"></code></p>
 
   <h2>受け取った redirect_uri</h2>
   <div id="raw" class="box">(none)</div>
   <div id="decoded" class="box">(none)</div>
 
-  <h2>LIFF 初期化</h2>
+  <h2>LIFF 初期化ステータス</h2>
   <div id="status" class="box">init 中…</div>
 
+  <!-- LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     (async()=>{
-      const LIFF_ID = "2007624426-93P1xyXj"; // 固定値
-      const urlEl = document.getElementById('url');
-      const rawEl = document.getElementById('raw');
-      const decEl = document.getElementById('decoded');
-      const stEl  = document.getElementById('status');
-      urlEl.textContent=location.href;
+      /*
+        ▼ 1. DOM 参照をまとめて取得
+      */
+      const urlBeforeEl = document.getElementById('urlBefore');
+      const urlAfterEl  = document.getElementById('urlAfter');
+      const rawEl       = document.getElementById('raw');
+      const decEl       = document.getElementById('decoded');
+      const stEl        = document.getElementById('status');
 
-      // redirect_uri 抽出
-      let val=null;
+      /*
+        ▼ 2. 起動直後の URL を表示
+           history.replaceState() 前に記録しておく
+      */
+      urlBeforeEl.textContent = location.href;
+
+      /*
+        ▼ 3. redirect_uri の抽出
+           - #fragment 優先で取得
+           - 取得後 fragment を URL から除外して LIFF と衝突させない
+      */
+      let redirectVal = null;
       if(location.hash){
-        const h=new URLSearchParams(location.hash.substr(1));
-        val=h.get('redirect_uri');
-        history.replaceState(null,'',location.pathname+location.search);
+        const hashParams = new URLSearchParams(location.hash.substring(1));
+        redirectVal = hashParams.get('redirect_uri');
+        // fragment を削除して二重エンコード源を絶つ
+        history.replaceState(null, '', location.pathname + location.search);
       }else if(location.search){
-        val=new URLSearchParams(location.search).get('redirect_uri');
+        redirectVal = new URLSearchParams(location.search).get('redirect_uri');
       }
-      if(val){
-        rawEl.textContent=val;
-        const once=decodeURIComponent(val);
-        const twice=decodeURIComponent(once);
-        decEl.innerHTML=`<b>1回 decode:</b> ${once}<br><b>2回 decode:</b> ${twice}`;
-      }else rawEl.textContent='(redirect_uri なし)';
 
-      // LIFF init
-      try{
-        await liff.init({liffId:LIFF_ID,withLoginOnExternalBrowser:true});
-        if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return;}
-        stEl.textContent='liff.init() 成功';stEl.classList.add('ok');
-      }catch(e){
-        stEl.textContent='liff.init() 失敗 → '+e;stEl.classList.add('ng');console.error(e);
+      /*
+        ▼ 4. 抽出した redirect_uri をそのまま / 1回 decode / 2回 decode の3パターンで表示
+      */
+      if(redirectVal){
+        rawEl.textContent = redirectVal;
+        const once  = decodeURIComponent(redirectVal);
+        const twice = decodeURIComponent(once);
+        decEl.innerHTML = `<b>1回 decode:</b> ${once}<br><b>2回 decode:</b> ${twice}`;
       }
+
+      /*
+        ▼ 5. LIFF 初期化
+           withLoginOnExternalBrowser:true → 外部ブラウザで認可フローを強制
+           liff.login() の再帰呼び出しで未ログイン時にリダイレクト
+      */
+      try{
+        await liff.init({
+          liffId: "2007624426-93P1xyXj",
+          withLoginOnExternalBrowser: true
+        });
+
+        if(!liff.isLoggedIn()){
+          // 未ログインなら外部ブラウザのログイン画面へ誘導
+          liff.login({ redirectUri: location.href });
+          return; // この後のコードはログイン後に再実行される
+        }
+
+        stEl.textContent = 'liff.init() 成功';
+        stEl.classList.add('ok');
+      }catch(err){
+        stEl.textContent = `liff.init() 失敗 → ${err}`;
+        stEl.classList.add('ng');
+        console.error(err);
+      }
+
+      /*
+        ▼ 6. init 完了時点 (または失敗時点) の最終 URL を表示
+           ここで %252F → %2F などに変化しているかチェック可能
+      */
+      urlAfterEl.textContent = location.href;
     })();
   </script>
 </body>
