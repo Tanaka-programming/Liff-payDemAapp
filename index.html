@@ -1,13 +1,10 @@
-<!-- =============================== ① PAYPAY-DEMO.HTML (unchanged) =============================== -->
-<!-- ... SAME AS v9, omitted for brevity ... -->
-
-<!-- =============================== ② LIFF-DEMO.HTML (v10) ====================================== -->
+<!-- =============================== ② LIFF-DEMO.HTML (v11) ====================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LIFF Demo – cleanUrl auto detect</title>
+  <title>LIFF Demo – login‑loop & 400 safe (v11)</title>
   <style>
     body{font-family:sans-serif;max-width:820px;margin:auto;padding:1.5rem;background:#fff;line-height:1.6;}
     .box{padding:1rem;border:1px solid #ccc;border-radius:.6rem;margin-top:1rem;background:#f9f9f9;}
@@ -17,11 +14,11 @@
   </style>
 </head>
 <body>
-  <h1>LIFF Demo – dynamic clean URL (v10)</h1>
+  <h1>LIFF Demo – 400 と無限ログインを防止</h1>
   <p>URL(before): <code id="urlBefore"></code></p>
   <p>URL(after):  <code id="urlAfter"></code></p>
 
-  <h2>redirect_uri 抽出結果</h2>
+  <h2>redirect_uri 抽出</h2>
   <div id="raw" class="box">(none)</div>
 
   <h2>LIFF 初期化ステータス</h2>
@@ -30,44 +27,55 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     (async()=>{
-      const LIFF_ID  = '2007624426-93P1xyXj';
-      const CLEAN_URL = location.origin + location.pathname // 👉 /Liff-payDemAapp/ にも対応
-                              .replace(/\/$/, '');         // 末尾スラッシュを整形(任意)
+      const LIFF_ID      = '2007624426-93P1xyXj';
+      // 開発者コンソール登録と完全一致させるため、末尾スラッシュも保持
+      const CLEAN_URL    = location.origin + location.pathname; // サブパス対応
+      const didLoginFlag = 'paypay_demo_didLogin';
 
       /* DOM */
-      const beforeEl=document.getElementById('urlBefore');
-      const afterEl =document.getElementById('urlAfter');
-      const rawBox  =document.getElementById('raw');
-      const stBox   =document.getElementById('status');
+      const beforeEl = document.getElementById('urlBefore');
+      const afterEl  = document.getElementById('urlAfter');
+      const rawBox   = document.getElementById('raw');
+      const stBox    = document.getElementById('status');
       beforeEl.textContent = location.href;
 
-      /* 1. fragment / query 抽出 → sessionStorage */
+      /* 1. fragment / query → sessionStorage */
       let val=null;
-      const u=new URL(location.href);
-      if(u.hash){val=new URLSearchParams(u.hash.substring(1)).get('redirect_uri');}
+      const u = new URL(location.href);
+      if(u.hash){val=new URLSearchParams(u.hash.slice(1)).get('redirect_uri');}
       if(!val){val=u.searchParams.get('redirect_uri');}
       if(val){sessionStorage.setItem('paypayResult',val);rawBox.textContent=val;}
 
-      /* 2. URL を CLEAN_URL に固定 */
+      /* 2. URL を CLEAN_URL に固定 (余計なクエリ/ハッシュを除去) */
       history.replaceState(null,'',CLEAN_URL);
 
-      /* 3. liff.init with clean URL */
-      try{
-        await liff.init({liffId:LIFF_ID,withLoginOnExternalBrowser:true});
-        if(!liff.isLoggedIn()){
-          liff.login({redirectUri:CLEAN_URL});
-          return;
-        }
-        stBox.textContent='liff.init() 成功';stBox.classList.add('ok');
-      }catch(e){
-        stBox.textContent='liff.init() 失敗 → '+e;stBox.classList.add('ng');console.error(e);
-      }
-      afterEl.textContent=location.href;
+      /* 3. liff.init (標準フロー) */
+      await liff.init({ liffId: LIFF_ID });
 
-      /* 4. liff.ready 後 */
-      liff.ready.then(()=>{
-        console.log('paypayResult:',sessionStorage.getItem('paypayResult'));
-      });
+      /* 4. liff.ready を待ってログイン状態を確認 */
+      await liff.ready;
+      if(!liff.isLoggedIn()){
+        // 無限ループ防止: まだ login していなければ 1 回だけ外部ブラウザへ
+        if(!sessionStorage.getItem(didLoginFlag)){
+          sessionStorage.setItem(didLoginFlag,'1');
+          liff.login({ redirectUri: CLEAN_URL });
+          return; // ログインへ遷移
+        }
+        // 既に外部ブラウザ往復したのに未ログイン → エラーメッセージ
+        stBox.textContent='ログイン失敗 (cookie ブロック? )';
+        stBox.classList.add('ng');
+        return;
+      }
+
+      /* 5. 成功処理 */
+      stBox.textContent='liff.init() & login 完了';
+      stBox.classList.add('ok');
+      afterEl.textContent = location.href;
+
+      // 余計な _ldci クエリが付いたら再度クリーンに
+      if(location.search){
+        history.replaceState(null,'',CLEAN_URL);
+      }
     })();
   </script>
 </body>
