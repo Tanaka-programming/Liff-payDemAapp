@@ -1,87 +1,66 @@
+<!-- ============================================================= -->
+<!--  ② LIFF‑DEMO.HTML                                            -->
+<!-- ============================================================= -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIFF Demo App (強制ログイン＋ハッシュ消去版)</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .status { padding: 10px; border-radius: 5px; font-weight: bold; white-space: pre-wrap; }
-        .status.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
-        .status.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
-        .status.info { background-color: #d9edf7; color: #31708f; border: 1px solid #bce8f1; }
-        .data { background-color: #f5f5f5; padding: 10px; border: 1px solid #ddd; border-radius: 5px; word-wrap: break-word; }
-        code { white-space: pre-wrap; word-break: break-all; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LIFF Demo (EX予約検証)</title>
+  <style>
+    body{font-family:sans-serif;padding:1.5rem;line-height:1.6;background:#fff;max-width:760px;margin:auto;}
+    .box{padding:1rem;border:1px solid #ccc;border-radius:.5rem;margin-top:1rem;background:#f9f9f9;}
+    .ok{background:#dff0d8;border-color:#d6e9c6;}
+    .ng{background:#f2dede;border-color:#ebccd1;}
+    code{word-break:break-all;white-space:pre-wrap;}
+  </style>
 </head>
 <body>
-    <h1>LIFF Demo App</h1>
-    <p>現在のURL: <code id="currentUrl"></code></p>
-    
-    <h2>LIFF初期化ステータス</h2>
-    <div id="status" class="status info">Initializing...</div>
+  <h1>LIFF Demo ‑ 二重エンコード検証</h1>
+  <p>現在 URL: <code id="url"></code></p>
 
-    <h2>受け取ったデータ</h2>
-    <div id="data" class="data">(none)</div>
+  <h2>受け取った redirect_uri</h2>
+  <div id="raw" class="box">(none)</div>
+  <div id="decoded" class="box">(none)</div>
 
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script>
-        async function main() {
-            document.getElementById('currentUrl').innerText = window.location.href;
-            
-            let finalRedirectUrl = null;
-            let receivedFrom = "(不明)";
+  <h2>LIFF 初期化</h2>
+  <div id="status" class="box">init 中…</div>
 
-            // 1. フラグメント(#)を優先的に読む
-            if (window.location.hash) {
-                receivedFrom = "フラグメント(#)";
-                const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                finalRedirectUrl = hashParams.get('redirect_uri');
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    (async()=>{
+      const LIFF_ID = "2007624426-93P1xyXj"; // 固定値
+      const urlEl = document.getElementById('url');
+      const rawEl = document.getElementById('raw');
+      const decEl = document.getElementById('decoded');
+      const stEl  = document.getElementById('status');
+      urlEl.textContent=location.href;
 
-                // 1‑a. fragment を読み終えたら URL から除去し、二重エンコードを根本回避
-                history.replaceState(null, '', window.location.pathname + window.location.search);
-            } else if (window.location.search) {
-                // 2. クエリパラメータ(?)
-                receivedFrom = "クエリパラメータ(?)";
-                const params = new URLSearchParams(window.location.search);
-                finalRedirectUrl = params.get('redirect_uri');
-            }
+      // redirect_uri 抽出
+      let val=null;
+      if(location.hash){
+        const h=new URLSearchParams(location.hash.substr(1));
+        val=h.get('redirect_uri');
+        history.replaceState(null,'',location.pathname+location.search);
+      }else if(location.search){
+        val=new URLSearchParams(location.search).get('redirect_uri');
+      }
+      if(val){
+        rawEl.textContent=val;
+        const once=decodeURIComponent(val);
+        const twice=decodeURIComponent(once);
+        decEl.innerHTML=`<b>1回 decode:</b> ${once}<br><b>2回 decode:</b> ${twice}`;
+      }else rawEl.textContent='(redirect_uri なし)';
 
-            // 3. 受け取ったデータを表示
-            if (finalRedirectUrl) {
-                const decodedData = decodeURIComponent(finalRedirectUrl);
-                document.getElementById('data').innerHTML =
-                    `<b>取得元:</b> ${receivedFrom}<br>` +
-                    `<b>エンコード済みの値:</b> ${finalRedirectUrl}<br>` +
-                    `<b>デコード後の値:</b> ${decodedData}`;
-            } else {
-                document.getElementById('data').innerText = `データはありませんでした。`;
-            }
-
-            // 4. LIFFの初期化（外部ブラウザで必ず認可を走らせる）---
-            const liffId = "2007624426-93P1xyXj";
-            try {
-                await liff.init({
-                    liffId,
-                    withLoginOnExternalBrowser: true
-                });
-
-                // 未ログインなら明示的にログイン要求
-                if (!liff.isLoggedIn()) {
-                    liff.login({ redirectUri: window.location.href });
-                    return;
-                }
-
-                document.getElementById('status').className = "status success";
-                document.getElementById('status').innerText = 'liff.init() 成功！ (ログイン済)';
-            } catch (error) {
-                document.getElementById('status').className = "status error";
-                document.getElementById('status').innerText = 'liff.init() 失敗！\n\n' + JSON.stringify(error, null, 2);
-                console.error("liff.init() failed", error);
-            }
-        }
-
-        window.onload = main;
-    </script>
+      // LIFF init
+      try{
+        await liff.init({liffId:LIFF_ID,withLoginOnExternalBrowser:true});
+        if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return;}
+        stEl.textContent='liff.init() 成功';stEl.classList.add('ok');
+      }catch(e){
+        stEl.textContent='liff.init() 失敗 → '+e;stEl.classList.add('ng');console.error(e);
+      }
+    })();
+  </script>
 </body>
 </html>
