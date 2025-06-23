@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LIFF Demo - v12 (Corrected)</title>
+    <title>LIFF Demo - v13 (Official Docs Compliant)</title>
     <style>
         body { font-family: sans-serif; max-width: 820px; margin: auto; padding: 1.5rem; background: #fff; line-height: 1.6; }
         .box { padding: 1rem; border: 1px solid #ccc; border-radius: .6rem; margin-top: 1rem; background: #f9f9f9; }
-        .ok { background: #dff0d8; border-color: #bfe7b9; }
-        .ng { background: #f2dede; border-color: #e3c4c4; }
+        .ok { background: #dff0d8; border-color: #bfe7b9; color: #3c763d; }
+        .ng { background: #f2dede; border-color: #e3c4c4; color: #a94442; }
         code { white-space: pre-wrap; word-break: break-all; }
         h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
     </style>
 </head>
 <body>
-    <h1>LIFF Demo - 修正版 (v12)</h1>
-    <p>遷移前の元URL: <code id="urlBefore"></code></p>
+    <h1>LIFF Demo - 最終修正版 (v13)</h1>
+    <p>現在のURL: <code id="currentUrl"></code></p>
     
     <h2>抽出された redirect_uri データ</h2>
     <div id="resultData" class="box">(データなし)</div>
@@ -26,59 +26,68 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
         (async () => {
-            // --- 定数とDOM要素の準備 ---
-            const LIFF_ID = '2007624426-93P1xyXj';
+            // --- DOM要素の準備 ---
             const resultEl = document.getElementById('resultData');
             const statusEl = document.getElementById('status');
-            const urlBeforeEl = document.getElementById('urlBefore');
-            
-            // ページ読み込み時のURLを記録
-            const initialUrl = window.location.href;
-            urlBeforeEl.textContent = initialUrl;
+            const urlEl = document.getElementById('currentUrl');
+            urlEl.textContent = window.location.href;
+
+            // --- LIFF ID ---
+            const LIFF_ID = '2007624426-93P1xyXj'; // ご自身のLIFF ID
 
             // --- メイン処理 ---
-            try {
-                // 1. URLからデータを抽出し、sessionStorageに保存
-                //    この処理は liff.init の前でも後でも問題ありません。
-                const url = new URL(initialUrl);
-                let redirectUriValue = null;
-                if (url.hash) {
-                    redirectUriValue = new URLSearchParams(url.hash.slice(1)).get('redirect_uri');
-                }
-                if (!redirectUriValue) {
-                    redirectUriValue = url.searchParams.get('redirect_uri');
-                }
-                if (redirectUriValue) {
-                    sessionStorage.setItem('paypayResult', redirectUriValue);
-                }
+            
+            // 1. URLからデータを先に読み取っておく
+            let redirectUriValue = null;
+            let sourceType = '(不明)';
+            const url = new URL(window.location.href);
 
-                // 2. liff.init()の実行
-                //    URLのクリーニングは不要です。liff.initが内部で適切に処理します。
-                //    認証が必要な場合は、このawaitの間に自動でログイン画面へ遷移し、戻ってきます。
-                statusEl.textContent = 'liff.init() を実行中...';
+            if (url.hash && url.hash.includes('redirect_uri')) {
+                sourceType = 'フラグメント(#)';
+                redirectUriValue = new URLSearchParams(url.hash.slice(1)).get('redirect_uri');
+            } else if (url.searchParams.has('redirect_uri')) {
+                sourceType = 'クエリパラメータ(?)';
+                redirectUriValue = url.searchParams.get('redirect_uri');
+            }
+
+            // 読み取ったデータを表示
+            if (redirectUriValue) {
+                resultEl.innerHTML = `<b>取得元:</b> ${sourceType}<br><b>値:</b> ${decodeURIComponent(redirectUriValue)}`;
+            }
+
+            // 2. liff.init()の実行（URL操作は行わない）
+            statusEl.textContent = 'liff.init() を実行中...';
+            try {
                 await liff.init({ liffId: LIFF_ID });
 
-                // 3. ログイン状態の確認と最終処理
+                // liff.init()が成功した場合
                 if (liff.isLoggedIn()) {
-                    statusEl.textContent = 'liff.init() & ログイン成功！';
+                    statusEl.textContent = 'liff.init() 成功！ (ログイン済み)';
                     statusEl.classList.add('ok');
-
-                    // sessionStorageからデータを読み込んで表示
-                    const finalData = sessionStorage.getItem('paypayResult');
-                    if (finalData) {
-                        resultEl.textContent = decodeURIComponent(finalData);
-                    } else {
-                        resultEl.textContent = '(sessionStorageにデータがありません)';
-                    }
                 } else {
-                    // ユーザーがログイン画面でキャンセルした場合など
-                    statusEl.textContent = '未ログイン状態です。認可されなかったか、ログインがキャンセルされました。';
-                    statusEl.classList.add('ng');
+                    // 認証が不要だった、またはユーザーがログインをキャンセルした
+                    statusEl.textContent = 'liff.init() 成功 (ただし未ログイン状態)';
+                }
+                
+                // クエリパラメータに liff.state などが付与されている場合、
+                // このタイミングでURLをクリーンにするのは安全です。
+                // liff.init().then() の中なので規約に準拠しています。
+                const cleanUrl = window.location.origin + window.location.pathname;
+                if(window.location.href !== cleanUrl) {
+                     // sessionStorageに保存した値を使ってリダイレクトするなど、後続処理をここに書く
                 }
 
             } catch (error) {
-                // liff.init()自体が失敗した場合 (設定ミスなど)
-                statusEl.textContent = 'liff.init() で致命的なエラーが発生しました。\n\n' + JSON.stringify(error, null, 2);
+                // liff.init()自体が失敗した場合
+                statusEl.innerHTML = 'liff.init() でエラーが発生しました。<br><br>' +
+                                   '<b>エラータイプ:</b> ' + error.code + '<br>' +
+                                   '<b>【原因の可能性】</b><br>';
+                
+                if (sourceType === 'クエリパラメータ(?)') {
+                    statusEl.innerHTML += '<b>・二重エンコード問題:</b> 未認証の状態でクエリパラメータを使うと、認証リダイレクト時にこのエラーが発生します。解決策としてフラグメント(#)方式をお試しください。';
+                } else {
+                    statusEl.innerHTML += '<b>・LIFF基本設定の不備:</b> エンドポイントURLが完全一致していない、またはチャネルが「公開中」になっていない可能性があります。LINE Developersコンソールをご確認ください。';
+                }
                 statusEl.classList.add('ng');
                 console.error('LIFF Initialization failed:', error);
             }
