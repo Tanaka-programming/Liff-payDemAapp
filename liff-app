@@ -63,7 +63,7 @@
             try {
                 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                 // ここに、ご自身のLIFF IDを正確に入力してください
-                const liffId = "YOUR_LIFF_ID_HERE";
+                const liffId = "2007624426-93P1xyXj";
                 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                 await liff.init({ liffId: liffId });
                 document.getElementById('status').className = "status success";
