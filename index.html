@@ -1,12 +1,13 @@
-<!-- ============================================================================================== -->
-<!-- ② LIFF‑DEMO.HTML – フラグメントは liff.ready 後に処理                                           -->
-<!-- ============================================================================================== -->
+<!-- =============================== ① PAYPAY-DEMO.HTML (unchanged) =============================== -->
+<!-- ... SAME AS v9, omitted for brevity ... -->
+
+<!-- =============================== ② LIFF-DEMO.HTML (v10) ====================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LIFF Demo – フラグメント安全活用</title>
+  <title>LIFF Demo – cleanUrl auto detect</title>
   <style>
     body{font-family:sans-serif;max-width:820px;margin:auto;padding:1.5rem;background:#fff;line-height:1.6;}
     .box{padding:1rem;border:1px solid #ccc;border-radius:.6rem;margin-top:1rem;background:#f9f9f9;}
@@ -16,61 +17,56 @@
   </style>
 </head>
 <body>
-  <h1>LIFF Demo – liff.ready 後に fragment を読む</h1>
+  <h1>LIFF Demo – dynamic clean URL (v10)</h1>
   <p>URL(before): <code id="urlBefore"></code></p>
   <p>URL(after):  <code id="urlAfter"></code></p>
 
-  <h2>fragment / query の中身</h2>
+  <h2>redirect_uri 抽出結果</h2>
   <div id="raw" class="box">(none)</div>
 
   <h2>LIFF 初期化ステータス</h2>
-  <div id="status" class="box">init 待機中…</div>
+  <div id="status" class="box">init 未実行…</div>
 
-  <!-- SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     (async()=>{
-      const LIFF_ID = '2007624426-93P1xyXj';
-      /* DOM 要素 */
-      const urlBefore = document.getElementById('urlBefore');
-      const urlAfter  = document.getElementById('urlAfter');
-      const rawBox    = document.getElementById('raw');
-      const statusBox = document.getElementById('status');
+      const LIFF_ID  = '2007624426-93P1xyXj';
+      const CLEAN_URL = location.origin + location.pathname // 👉 /Liff-payDemAapp/ にも対応
+                              .replace(/\/$/, '');         // 末尾スラッシュを整形(任意)
 
-      urlBefore.textContent = location.href; // init 前 URL
+      /* DOM */
+      const beforeEl=document.getElementById('urlBefore');
+      const afterEl =document.getElementById('urlAfter');
+      const rawBox  =document.getElementById('raw');
+      const stBox   =document.getElementById('status');
+      beforeEl.textContent = location.href;
 
-      /* ---------- liff.init ---------- */
-      await liff.init({ liffId: LIFF_ID });
+      /* 1. fragment / query 抽出 → sessionStorage */
+      let val=null;
+      const u=new URL(location.href);
+      if(u.hash){val=new URLSearchParams(u.hash.substring(1)).get('redirect_uri');}
+      if(!val){val=u.searchParams.get('redirect_uri');}
+      if(val){sessionStorage.setItem('paypayResult',val);rawBox.textContent=val;}
 
-      /* ---------- liff.ready で SDK 完了を待つ ---------- */
+      /* 2. URL を CLEAN_URL に固定 */
+      history.replaceState(null,'',CLEAN_URL);
+
+      /* 3. liff.init with clean URL */
+      try{
+        await liff.init({liffId:LIFF_ID,withLoginOnExternalBrowser:true});
+        if(!liff.isLoggedIn()){
+          liff.login({redirectUri:CLEAN_URL});
+          return;
+        }
+        stBox.textContent='liff.init() 成功';stBox.classList.add('ok');
+      }catch(e){
+        stBox.textContent='liff.init() 失敗 → '+e;stBox.classList.add('ng');console.error(e);
+      }
+      afterEl.textContent=location.href;
+
+      /* 4. liff.ready 後 */
       liff.ready.then(()=>{
-        statusBox.textContent = 'liff.ready OK';
-        statusBox.classList.add('ok');
-
-        // 1) fragment→query の順で取得（PayPay 側実装に依存）
-        let val = null;
-        if(location.hash){
-          val = new URLSearchParams(location.hash.substring(1)).get('redirect_uri');
-        }
-        if(!val){
-          val = new URLSearchParams(location.search).get('redirect_uri');
-        }
-
-        // 2) 表示 & セッション保存
-        if(val){
-          rawBox.textContent = val;
-          sessionStorage.setItem('paypayResult', val);
-        }else{
-          rawBox.textContent = '(redirect_uri なし)';
-        }
-
-        // 3) fragment/query を削除して URL をクリーンに（再読込無し）
-        history.replaceState(null,'', location.origin + location.pathname);
-
-        urlAfter.textContent = location.href; // init 後 URL
-      }).catch(err=>{
-        statusBox.textContent = 'liff.ready error → '+err;
-        statusBox.classList.add('ng');
+        console.log('paypayResult:',sessionStorage.getItem('paypayResult'));
       });
     })();
   </script>
