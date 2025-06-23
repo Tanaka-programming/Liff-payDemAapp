@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIFF Demo App (強制ログイン版)</title>
+    <title>LIFF Demo App (強制ログイン＋ハッシュ消去版)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
         .status { padding: 10px; border-radius: 5px; font-weight: bold; white-space: pre-wrap; }
@@ -32,19 +32,22 @@
             let finalRedirectUrl = null;
             let receivedFrom = "(不明)";
 
-            // フラグメント(#)があれば、それを優先して解釈
+            // 1. フラグメント(#)を優先的に読む
             if (window.location.hash) {
                 receivedFrom = "フラグメント(#)";
                 const hashParams = new URLSearchParams(window.location.hash.substring(1));
                 finalRedirectUrl = hashParams.get('redirect_uri');
+
+                // 1‑a. fragment を読み終えたら URL から除去し、二重エンコードを根本回避
+                history.replaceState(null, '', window.location.pathname + window.location.search);
             } else if (window.location.search) {
-                // クエリパラメータ(?)があれば、それを解釈
+                // 2. クエリパラメータ(?)
                 receivedFrom = "クエリパラメータ(?)";
                 const params = new URLSearchParams(window.location.search);
                 finalRedirectUrl = params.get('redirect_uri');
             }
 
-            // 受け取ったデータを表示
+            // 3. 受け取ったデータを表示
             if (finalRedirectUrl) {
                 const decodedData = decodeURIComponent(finalRedirectUrl);
                 document.getElementById('data').innerHTML =
@@ -55,19 +58,18 @@
                 document.getElementById('data').innerText = `データはありませんでした。`;
             }
 
-            // --- LIFFの初期化（外部ブラウザで必ず認可を走らせる）---
-            const liffId = "2007624426-93P1xyXj"; // ★ 本番では環境変数などで管理を推奨
-
+            // 4. LIFFの初期化（外部ブラウザで必ず認可を走らせる）---
+            const liffId = "2007624426-93P1xyXj";
             try {
                 await liff.init({
                     liffId,
-                    withLoginOnExternalBrowser: true // ← ここがポイント：外部ブラウザで認可フローを強制
+                    withLoginOnExternalBrowser: true
                 });
 
-                // 未ログインなら明示的にログイン要求（念のため）
+                // 未ログインなら明示的にログイン要求
                 if (!liff.isLoggedIn()) {
                     liff.login({ redirectUri: window.location.href });
-                    return; // 以降の処理はリダイレクト後に実行
+                    return;
                 }
 
                 document.getElementById('status').className = "status success";
