@@ -1,85 +1,74 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LIFF Demo - v14 (External Browser Login)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIFF Endpoint</title>
     <style>
-        body { font-family: sans-serif; max-width: 820px; margin: auto; padding: 1.5rem; background: #fff; line-height: 1.6; }
-        .box { padding: 1rem; border: 1px solid #ccc; border-radius: .6rem; margin-top: 1rem; background: #f9f9f9; }
-        .ok { background: #dff0d8; border-color: #bfe7b9; color: #3c763d; }
-        .ng { background: #f2dede; border-color: #e3c4c4; color: #a94442; }
-        .info { background-color: #d9edf7; color: #31708f; border: 1px solid #bce8f1; }
-        code { white-space: pre-wrap; word-break: break-all; }
-        h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem; background: #f0f0f0; }
+        .primary { border: 2px solid #31708f; }
+        .secondary { border: 2px solid #3c763d; }
+        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        code { white-space: pre-wrap; word-break: break-all; background: #fff; padding: 2px 4px; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <h1>LIFF Demo - 外部ブラウザでのみログイン (v14)</h1>
-    <p>現在のURL: <code id="currentUrl"></code></p>
+    <h1>LIFFリダイレクト先ページ</h1>
+
+    <div id="redirectStage"></div>
+    <div id="urlDisplay" class="box"></div>
+    <div id="paramDisplay" class="box"></div>
     
-    <h2>抽出された redirect_uri データ</h2>
-    <div id="resultData" class="box">(データなし)</div>
-
-    <h2>LIFF 初期化ステータス</h2>
-    <div id="status" class="box">初期化処理を開始します...</div>
-
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
+        // --- ★★★ ここにLIFF IDを設定 ★★★ ---
+        const MY_LIFF_ID = "2007624426-93P1xyXj";
+        // ------------------------------------
+
+        // このページのメインロジック
         (async () => {
-            // --- 定数とDOM要素の準備 ---
-            const LIFF_ID = '2007624426-93P1xyXj'; // ご自身のLIFF ID
-            const resultEl = document.getElementById('resultData');
-            const statusEl = document.getElementById('status');
-            const urlEl = document.getElementById('currentUrl');
-            
-            urlEl.textContent = window.location.href;
+            const stageDiv = document.getElementById('redirectStage');
+            const urlDiv = document.getElementById('urlDisplay');
+            const paramDiv = document.getElementById('paramDisplay');
 
-            // --- メイン処理 ---
-            try {
-                // 1. URLからデータを抽出し、sessionStorageに保存
-                const url = new URL(window.location.href);
-                let redirectUriValue = null;
-                if (url.hash && url.hash.includes('redirect_uri')) {
-                    redirectUriValue = new URLSearchParams(url.hash.slice(1)).get('redirect_uri');
-                } else if (url.searchParams.has('redirect_uri')) {
-                    redirectUriValue = url.searchParams.get('redirect_uri');
-                }
-                if (redirectUriValue) {
-                    sessionStorage.setItem('paypayResult', redirectUriValue);
-                }
+            const currentUrl = window.location.href;
+            const params = new URLSearchParams(window.location.search);
 
-                // 2. liff.init()の実行
-                statusEl.textContent = 'liff.init() を実行中...';
-                await liff.init({ liffId: LIFF_ID });
-                statusEl.textContent = 'liff.init() 成功！';
-                statusEl.classList.add('ok');
+            // liff.stateの有無で、1次リダイレクト先か2次リダイレクト先かを判定
+            if (params.has('liff.state')) {
+                // --- 1次リダイレクト先の処理 ---
+                stageDiv.innerHTML = "<h2>現在地: 1次リダイレクト先</h2><p>liff.stateパラメータが存在するため、1次リダイレクト先と判断しました。これからliff.init()を実行し、2次リダイレクトをトリガーします。</p>";
+                urlDiv.classList.add('primary');
+                urlDiv.innerHTML = "<h3>現在のURL</h3><code>" + currentUrl + "</code>";
+                paramDiv.innerHTML = "<h3>liff.state の中身</h3><code>" + params.get('liff.state') + "</code>";
 
-                // 3. 【ここが重要】外部ブラウザ、かつ、未ログインの場合のみ liff.login() を実行
-                if (!liff.isInClient() && !liff.isLoggedIn()) {
-                    statusEl.textContent += '\n外部ブラウザかつ未ログインのため、ログインページに遷移します...';
-                    // liff.login() を呼び出すと、ページがリダイレクトされるため、ここで処理は中断される
-                    liff.login();
-                    return; // 念のため処理を中断
+                try {
+                    await liff.init({ liffId: MY_LIFF_ID });
+                } catch (e) {
+                    console.error(e);
+                    stageDiv.innerHTML += "<p style='color:red;'>liff.init()でエラーが発生しました。</p>";
                 }
 
-                // 4. 最終的な成功処理
-                // (LINE内ブラウザの場合、または外部ブラウザで既にログイン済みの場合にこの処理が実行される)
-                const finalData = sessionStorage.getItem('paypayResult');
-                if (finalData) {
-                    resultEl.textContent = decodeURIComponent(finalData);
-                } else {
-                    resultEl.textContent = '(sessionStorageにデータがありません)';
-                }
+            } else {
+                // --- 2次リダイレクト先の処理 ---
+                stageDiv.innerHTML = "<h2>現在地: 2次リダイレクト先（最終ページ）</h2><p>liff.stateパラメータが存在しないため、2次リダイレクト先と判断しました。URLパラメータがどのようにデコードされたかを確認してください。</p>";
+                urlDiv.classList.add('secondary');
+                urlDiv.innerHTML = "<h3>現在のURL</h3><code>" + currentUrl + "</code>";
 
-            } catch (error) {
-                // liff.init()自体が失敗した場合
-                statusEl.innerHTML = 'liff.init() で致命的なエラーが発生しました。<br><br>' +
-                                   '<b>エラー:</b> ' + JSON.stringify(error, null, 2) + '<br><br>' +
-                                   '<b>【確認事項】</b><br>' +
-                                   'LIFFの基本設定（エンドポイントURL、公開ステータス）が正しいかご確認ください。';
-                statusEl.classList.add('ng');
-                console.error('LIFF Initialization failed:', error);
+                // パラメータを取得して表示
+                const callbackParam = params.get('callback');
+                paramDiv.innerHTML = "<h3>'callback'パラメータの値</h3>" +
+                                     "<p>LIFF SDKによる再構築の結果、以下の値が取得されました。</p>" +
+                                     "<code>" + callbackParam + "</code>" +
+                                     "<p style='margin-top:1em; font-weight:bold; color:red;'>注意：もし元の値が 'https%3A%2F%2F...' であった場合、この時点で 'https://...' のようにデコードされてしまっているため、URLの構造が壊れています。</p>";
+                
+                try {
+                    await liff.init({ liffId: MY_LIFF_ID });
+                } catch (e) {
+                    console.error(e);
+                    stageDiv.innerHTML += "<p style='color:red;'>liff.init()でエラーが発生しました。</p>";
+                }
             }
         })();
     </script>
