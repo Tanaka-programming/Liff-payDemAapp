@@ -6,21 +6,19 @@
     <title>LIFF Redirect Analyzer - Endpoint</title>
     <style>
         body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem; background: #f0f0f0; border-left: 5px solid; }
-        .primary { border-color: #31708f; }
-        .secondary { border-color: #3c763d; }
-        .error { border-color: #a94442; background-color: #f2dede; color: #a94442; }
         h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
-        code { white-space: pre-wrap; word-break: break-all; background: #e8e8e8; padding: 2px 4px; border-radius: 4px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1em;}
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
-        th { background-color: #f2f2f2; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; table-layout: fixed; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; word-break: break-all; }
+        th { background-color: #f2f2f2; width: 150px; }
+        code { white-space: pre-wrap; background: #e8e8e8; padding: 2px 4px; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <h1>LIFFリダイレクト追跡</h1>
+    <h1>LIFFリダイレクト追跡結果</h1>
 
-    <div id="report"></div>
+    <div id="report">
+        <p>リダイレクト処理中...</p>
+    </div>
     
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
@@ -31,64 +29,52 @@
             const currentUrl = window.location.href;
             const params = new URLSearchParams(window.location.search);
 
+            // liff.stateの有無で、1次リダイレクト先か2次リダイレクト先かを判定
             if (params.has('liff.state')) {
                 // --- 1次リダイレクト先の処理 ---
-                let primaryHtml = `
-                    <h2>現在地: 1次リダイレクト先</h2>
-                    <p>liff.stateパラメータが存在するため、1次リダイレクト先と判断しました。これからliff.init()を実行し、2次リダイレクトをトリガーします。</p>
-                    <div class="box primary">
-                        <h3>現在のURL</h3><code>${currentUrl}</code>
-                        <h3>liff.state の中身</h3><code>${params.get('liff.state')}</code>
-                    </div>
-                    <div id="initStatus" class="box"></div>`;
-                reportDiv.innerHTML = primaryHtml;
-                
-                const initStatusDiv = document.getElementById('initStatus');
-                initStatusDiv.innerText = 'liff.init() を実行中...';
+                // URLとliff.stateの値をsessionStorageに保存
+                sessionStorage.setItem('url_2_primary', currentUrl);
+                sessionStorage.setItem('liff_state_value', params.get('liff.state'));
 
+                // 画面に現在の状態を表示
+                reportDiv.innerHTML = "<h2>現在地: 1次リダイレクト先</h2><p>liff.init()を実行し、2次リダイレクトをトリガーします。画面が自動的に切り替わります...</p>";
+
+                // 2次リダイレクトをトリガーするためにliff.init()を実行
                 try {
                     await liff.init({ liffId: MY_LIFF_ID });
-                    initStatusDiv.innerText = 'liff.init() 成功。2次リダイレクトへ遷移します...';
                 } catch (e) {
-                    console.error("1st Redirect liff.init() failed:", e);
-                    initStatusDiv.classList.add('error');
-                    initStatusDiv.innerHTML = '<h3>liff.init() 失敗！</h3>' +
-                                            '<p>2次リダイレクトへ進めませんでした。根本的な設定に問題がある可能性が高いです。</p>' +
-                                            '<h4>エラー詳細:</h4>' +
-                                            '<code>' + JSON.stringify(e, null, 2) + '</code>' +
-                                            '<h4 style="margin-top:1em;">確認事項:</h4>' +
-                                            '<ul><li>LINE Developersコンソールの<b>エンドポイントURL</b>は、このページのURLと完全に一致していますか？</li>' +
-                                            '<li>チャネルのステータスは<b>「公開中」</b>になっていますか？</li></ul>';
+                    reportDiv.innerHTML = "<h2>エラー</h2><p>1次リダイレクト先でliff.init()が失敗しました。LIFFの基本設定（エンドポイントURL、公開ステータスなど）をご確認ください。</p><code>" + JSON.stringify(e) + "</code>";
                 }
 
             } else {
                 // --- 2次リダイレクト先の処理（最終ページ） ---
-                sessionStorage.setItem('url_3_secondary', currentUrl);
-
+                // ここではliff.init()を実行しない、という検証パターン
+                
+                // sessionStorageから全情報を取得してレポートを作成
                 const url1 = sessionStorage.getItem('url_1_initial') || '(情報なし)';
                 const url2 = sessionStorage.getItem('url_2_primary') || '(情報なし)';
                 const liffState = sessionStorage.getItem('liff_state_value') || '(情報なし)';
-                const url3 = sessionStorage.getItem('url_3_secondary') || '(情報なし)';
+                const url3 = currentUrl; // このページのURLがURL③
 
+                // URL③から実際に取得できたパラメータの値
                 const finalParams = new URLSearchParams(new URL(url3).search);
                 const finalCallbackValue = finalParams.get('callback') || 'null (取得失敗)';
 
                 reportDiv.innerHTML = `
                     <h2>リダイレクト追跡レポート（最終結果）</h2>
+                    <p>liff.init()を1次リダイレクトでのみ実行した結果です。</p>
                     <table>
                         <tr><th>段階</th><th>URL / 値</th></tr>
-                        <tr><td><b>URL① (入力)</b></td><td><code>${url1}</code></td></tr>
-                        <tr><td><b>URL② (中間)</b></td><td><code>${url2}</code></td></tr>
-                        <tr><td><b>liff.state の値</b></td><td><code>${liffState}</code></td></tr>
-                        <tr><td><b>URL③ (出力)</b></td><td><code>${url3}</code></td></tr>
+                        <tr><td><b>URL① (入力)</b><br>最初にアクセスしたLIFF URL</td><td><code>${url1}</code></td></tr>
+                        <tr><td><b>URL② (中間)</b><br>1次リダイレクト先のURL</td><td><code>${url2}</code></td></tr>
+                        <tr><td><b>liff.state の値</b><br>LIFF SDKが「梱包」したデータ</td><td><code>${liffState}</code></td></tr>
+                        <tr><td><b>URL③ (出力)</b><br>2次リダイレクト後の最終URL</td><td><code>${url3}</code></td></tr>
                         <tr><td><b>URL③から取得した'callback'パラメータの値</b></td><td style="color:red; font-weight:bold;"><code>${finalCallbackValue}</code></td></tr>
-                    </table>`;
-                
-                try {
-                    await liff.init({ liffId: MY_LIFF_ID });
-                } catch (e) {
-                    reportDiv.innerHTML += "<p style='color:red;'>最終ページでのliff.init()でエラーが発生しました。</p>";
-                }
+                    </table>
+                    <hr>
+                    <h3>分析結果</h3>
+                    <p>URL①で渡そうとした<code>callback</code>パラメータの値（<code>https%3A%2F%2F...</code>）が、URL③の段階でどのように変化したか（または消失したか）をご確認ください。ここで値が期待通りでない場合、LIFF SDKのURL再構築処理で「中途半端なデコード」が発生していることが原因です。</p>
+                `;
             }
         })();
     </script>
