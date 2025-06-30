@@ -3,85 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIFF Base64 Analyzer - Endpoint</title>
+    <title>LIFF Endpoint (Query + Base64)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem; background: #f0f0f0; border: 2px solid; }
+        .ok { border-color: #3c763d; }
+        .ng { border-color: #a94442; }
         h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1em; table-layout: fixed; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; word-break: break-all; }
-        th { background-color: #f2f2f2; width: 150px; }
-        code { white-space: pre-wrap; background: #e8e8e8; padding: 2px 4px; border-radius: 4px; }
-        .notice { background-color: #dff0d8; border: 1px solid #bfe7b9; color: #3c763d; padding: 15px; border-radius: 5px; margin-top: 20px; }
+        code { white-space: pre-wrap; word-break: break-all; background: #e8e8e8; padding: 2px 4px; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <h1>Base64方式 リダイレクト追跡結果</h1>
+    <h1>LIFFアプリ最終ページ (クエリ + Base64方式)</h1>
 
-    <div id="report"><p>リダイレクト処理中...</p></div>
+    <h2>LIFF初期化ステータス</h2>
+    <div id="status" class="box">初期化中...</div>
+    
+    <h2>受信・復元したデータ</h2>
+    <div id="result" class="box">データなし</div>
     
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
         const MY_LIFF_ID = "2007624426-93P1xyXj";
 
         (async () => {
-            const reportDiv = document.getElementById('report');
-            const currentUrl = window.location.href;
-            const params = new URLSearchParams(window.location.search);
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
 
-            // 1次リダイレクト先か2次リダイレクト先かを判定
-            if (params.has('liff.state')) {
-                // --- 1次リダイレクト先の処理 ---
-                sessionStorage.setItem('url_2_primary', currentUrl);
-                sessionStorage.setItem('liff_state_value', params.get('liff.state'));
-                reportDiv.innerHTML = "<h2>現在地: 1次リダイレクト先</h2><p>2次リダイレクトへ遷移します...</p>";
+            try {
+                // 1. liff.init()を実行
                 await liff.init({ liffId: MY_LIFF_ID });
+                statusDiv.innerText = "liff.init() 成功！";
+                statusDiv.classList.add('ok');
 
-            } else {
-                // --- 2次リダイレクト先の処理（最終ページ） ---
-                // 公式ドキュメントに基づき、まずliff.init()を実行
-                try {
-                    await liff.init({ liffId: MY_LIFF_ID });
-                } catch(e) {
-                     reportDiv.innerHTML = "<h2>エラー</h2><p>最終ページでliff.init()が失敗しました。LIFFの基本設定をご確認ください。</p>";
-                     return;
+                // 2. liff.init()完了後、クエリパラメータを解析
+                const params = new URLSearchParams(window.location.search);
+                const base64Data = params.get('payload');
+
+                if (base64Data) {
+                    // 3. Base64データをデコードしてJSON文字列に戻す
+                    const jsonString = atob(base64Data);
+
+                    // 4. JSON文字列をパースして元のオブジェクトに戻す
+                    const receivedData = JSON.parse(jsonString);
+
+                    resultDiv.innerHTML = "<h3>データ受信・復元成功</h3>" +
+                                        "<p>受信したBase64データ:</p>" +
+                                        "<code>" + base64Data + "</code>" +
+                                        "<p>デコード・パース後のオブジェクト:</p>" +
+                                        "<pre><code style='font-weight:bold; color:blue;'>" + JSON.stringify(receivedData, null, 2) + "</code></pre>";
+                } else {
+                    resultDiv.innerText = "データがありませんでした。";
                 }
-                
-                // 全情報を取得してレポートを作成
-                const url1 = sessionStorage.getItem('url_1_initial') || '(情報なし)';
-                const url2 = sessionStorage.getItem('url_2_primary') || '(情報なし)';
-                const liffState = sessionStorage.getItem('liff_state_value') || '(情報なし)';
-                const url3 = currentUrl;
-
-                // URL③からBase64データを取得
-                const finalParams = new URLSearchParams(new URL(url3).search);
-                const finalBase64Value = finalParams.get('data') || 'null (取得失敗)';
-                
-                // Base64データをデコード
-                let finalDecodedValue = 'N/A';
-                if (finalBase64Value !== 'null (取得失敗)') {
-                    try {
-                        finalDecodedValue = atob(finalBase64Value);
-                    } catch (e) {
-                        finalDecodedValue = 'Base64デコード失敗: ' + e.message;
-                    }
-                }
-
-                reportDiv.innerHTML = `
-                    <h2>リダイレクト追跡レポート（最終結果）</h2>
-                    <table>
-                        <tr><th>段階</th><th>URL / 値</th></tr>
-                        <tr><td><b>URL① (入力)</b></td><td><code>${url1}</code></td></tr>
-                        <tr><td><b>URL② (中間)</b></td><td><code>${url2}</code></td></tr>
-                        <tr><td><b>liff.state の値</b></td><td><code>${liffState}</code></td></tr>
-                        <tr><td><b>URL③ (出力)</b></td><td><code>${url3}</code></td></tr>
-                        <tr><td><b>URL③から取得した'data'パラメータ</b><br>(Base64化されたまま)</td><td style="color:blue; font-weight:bold;"><code>${finalBase64Value}</code></td></tr>
-                        <tr><td><b>最終的なデコード結果</b><br>(Base64デコード後)</td><td style="color:green; font-weight:bold;"><code>${finalDecodedValue}</code></td></tr>
-                    </table>
-                    <div class="notice">
-                        <h3>分析結果</h3>
-                        <p>Base64エンコードされたデータが、LIFFの1次・2次リダイレクトを経ても破壊・消失することなく、最終ページまで正しく渡されていることが確認できます。これをデコードすることで、元のデータを完全に復元できます。</p>
-                    </div>
-                `;
+            } catch (e) {
+                statusDiv.innerText = "liff.init() でエラーが発生しました。\n" + JSON.stringify(e);
+                statusDiv.classList.add('ng');
             }
         })();
     </script>
