@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>LIFF Endpoint</title>
+  <title>LIFF Endpoint (redirect_uri比較)</title>
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
     .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem;
@@ -13,13 +13,19 @@
   </style>
 </head>
 <body>
-  <h1>LIFF Endpoint (データ復元テスト)</h1>
+  <h1>LIFF Endpoint (redirect_uri比較)</h1>
   <div id="status" class="box">初期化中...</div>
   <div id="result" class="box">データなし</div>
+  <div id="log" class="box"></div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-    const MY_LIFF_ID = "2007624426-93P1xyXj"; // ★あなたの LIFF ID に置き換え
+    const MY_LIFF_ID = "2007624426-93P1xyXj"; // ★置き換え
+
+    function log(msg) {
+      console.log(msg);
+      document.getElementById("log").innerHTML += "<pre>" + msg + "</pre>";
+    }
 
     (async () => {
       const statusDiv = document.getElementById("status");
@@ -33,27 +39,28 @@
         const params = new URLSearchParams(window.location.search);
 
         // 通常エンコード版
-        if (params.get("payload_normal")) {
-          const decoded = decodeURIComponent(params.get("payload_normal"));
-          const obj = JSON.parse(decoded);
+        if (params.get("redirect_normal")) {
+          const decoded = decodeURIComponent(params.get("redirect_normal"));
           resultDiv.innerHTML =
             "<h3>通常URLエンコード方式</h3>" +
-            "<p>受信値 (エンコード済み):</p><pre>" + params.get("payload_normal") + "</pre>" +
-            "<p>復元オブジェクト:</p><pre>" + JSON.stringify(obj, null, 2) + "</pre>";
+            "<p>受信値:</p><pre>" + params.get("redirect_normal") + "</pre>" +
+            "<p>デコード結果:</p><pre>" + decoded + "</pre>";
+          log("通常受信 → " + decoded);
         }
 
         // Base64版
-        if (params.get("payload_b64")) {
-          const decoded = atob(params.get("payload_b64"));
-          const obj = JSON.parse(decoded);
+        if (params.get("redirect_b64")) {
+          const decoded = atob(params.get("redirect_b64"));
           resultDiv.innerHTML =
             "<h3>Base64方式</h3>" +
-            "<p>受信値 (Base64):</p><pre>" + params.get("payload_b64") + "</pre>" +
-            "<p>復元オブジェクト:</p><pre>" + JSON.stringify(obj, null, 2) + "</pre>";
+            "<p>受信値:</p><pre>" + params.get("redirect_b64") + "</pre>" +
+            "<p>Base64デコード結果:</p><pre>" + decoded + "</pre>";
+          log("Base64受信 → " + decoded);
         }
       } catch (e) {
         statusDiv.innerText = "liff.init() でエラー\n" + JSON.stringify(e);
         statusDiv.classList.add("ng");
+        log("Error: " + JSON.stringify(e));
       }
     })();
   </script>
