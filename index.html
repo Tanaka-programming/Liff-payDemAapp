@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>LIFF Endpoint (redirect_uri比較)</title>
+  <title>LIFF Endpoint</title>
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
     .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem;
@@ -16,51 +16,41 @@
   <h1>LIFF Endpoint (redirect_uri比較)</h1>
   <div id="status" class="box">初期化中...</div>
   <div id="result" class="box">データなし</div>
-  <div id="log" class="box"></div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-    const MY_LIFF_ID = "2007624426-93P1xyXj"; // ★置き換え
-
-    function log(msg) {
-      console.log(msg);
-      document.getElementById("log").innerHTML += "<pre>" + msg + "</pre>";
-    }
+    const MY_LIFF_ID = "2007624426-93P1xyXj"; // ★あなたの LIFF ID
 
     (async () => {
       const statusDiv = document.getElementById("status");
       const resultDiv = document.getElementById("result");
 
       try {
+        // ここで liff.init を呼ぶと、自動的に liff.state が解釈されます
         await liff.init({ liffId: MY_LIFF_ID });
-        statusDiv.innerText = "liff.init() 成功！";
+        statusDiv.innerText = "liff.init() 成功！（liff.state 自動処理済み）";
         statusDiv.classList.add("ok");
 
         const params = new URLSearchParams(window.location.search);
 
-        // 通常エンコード版
         if (params.get("redirect_normal")) {
           const decoded = decodeURIComponent(params.get("redirect_normal"));
           resultDiv.innerHTML =
             "<h3>通常URLエンコード方式</h3>" +
             "<p>受信値:</p><pre>" + params.get("redirect_normal") + "</pre>" +
             "<p>デコード結果:</p><pre>" + decoded + "</pre>";
-          log("通常受信 → " + decoded);
         }
 
-        // Base64版
         if (params.get("redirect_b64")) {
           const decoded = atob(params.get("redirect_b64"));
           resultDiv.innerHTML =
             "<h3>Base64方式</h3>" +
             "<p>受信値:</p><pre>" + params.get("redirect_b64") + "</pre>" +
             "<p>Base64デコード結果:</p><pre>" + decoded + "</pre>";
-          log("Base64受信 → " + decoded);
         }
       } catch (e) {
         statusDiv.innerText = "liff.init() でエラー\n" + JSON.stringify(e);
         statusDiv.classList.add("ng");
-        log("Error: " + JSON.stringify(e));
       }
     })();
   </script>
