@@ -1,65 +1,61 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIFF Endpoint (Query + Base64)</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem; background: #f0f0f0; border: 2px solid; }
-        .ok { border-color: #3c763d; }
-        .ng { border-color: #a94442; }
-        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
-        code { white-space: pre-wrap; word-break: break-all; background: #e8e8e8; padding: 2px 4px; border-radius: 4px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>LIFF Endpoint</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+    .box { padding: 1rem; border-radius: .6rem; margin-top: 1rem;
+           background: #f0f0f0; border: 2px solid; }
+    .ok { border-color: #3c763d; }
+    .ng { border-color: #a94442; }
+    pre { background: #e8e8e8; padding: 6px; border-radius: 4px; }
+  </style>
 </head>
 <body>
-    <h1>LIFFアプリ最終ページ (クエリ + Base64方式)</h1>
+  <h1>LIFF Endpoint (データ復元テスト)</h1>
+  <div id="status" class="box">初期化中...</div>
+  <div id="result" class="box">データなし</div>
 
-    <h2>LIFF初期化ステータス</h2>
-    <div id="status" class="box">初期化中...</div>
-    
-    <h2>受信・復元したデータ</h2>
-    <div id="result" class="box">データなし</div>
-    
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script>
-        const MY_LIFF_ID = "2007624426-93P1xyXj";
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    const MY_LIFF_ID = "2007624426-93P1xyXj"; // ★あなたの LIFF ID に置き換え
 
-        (async () => {
-            const statusDiv = document.getElementById('status');
-            const resultDiv = document.getElementById('result');
+    (async () => {
+      const statusDiv = document.getElementById("status");
+      const resultDiv = document.getElementById("result");
 
-            try {
-                // 1. liff.init()を実行
-                await liff.init({ liffId: MY_LIFF_ID });
-                statusDiv.innerText = "liff.init() 成功！";
-                statusDiv.classList.add('ok');
+      try {
+        await liff.init({ liffId: MY_LIFF_ID });
+        statusDiv.innerText = "liff.init() 成功！";
+        statusDiv.classList.add("ok");
 
-                // 2. liff.init()完了後、クエリパラメータを解析
-                const params = new URLSearchParams(window.location.search);
-                const base64Data = params.get('payload');
+        const params = new URLSearchParams(window.location.search);
 
-                if (base64Data) {
-                    // 3. Base64データをデコードしてJSON文字列に戻す
-                    const jsonString = atob(base64Data);
+        // 通常エンコード版
+        if (params.get("payload_normal")) {
+          const decoded = decodeURIComponent(params.get("payload_normal"));
+          const obj = JSON.parse(decoded);
+          resultDiv.innerHTML =
+            "<h3>通常URLエンコード方式</h3>" +
+            "<p>受信値 (エンコード済み):</p><pre>" + params.get("payload_normal") + "</pre>" +
+            "<p>復元オブジェクト:</p><pre>" + JSON.stringify(obj, null, 2) + "</pre>";
+        }
 
-                    // 4. JSON文字列をパースして元のオブジェクトに戻す
-                    const receivedData = JSON.parse(jsonString);
-
-                    resultDiv.innerHTML = "<h3>データ受信・復元成功</h3>" +
-                                        "<p>受信したBase64データ:</p>" +
-                                        "<code>" + base64Data + "</code>" +
-                                        "<p>デコード・パース後のオブジェクト:</p>" +
-                                        "<pre><code style='font-weight:bold; color:blue;'>" + JSON.stringify(receivedData, null, 2) + "</code></pre>";
-                } else {
-                    resultDiv.innerText = "データがありませんでした。";
-                }
-            } catch (e) {
-                statusDiv.innerText = "liff.init() でエラーが発生しました。\n" + JSON.stringify(e);
-                statusDiv.classList.add('ng');
-            }
-        })();
-    </script>
+        // Base64版
+        if (params.get("payload_b64")) {
+          const decoded = atob(params.get("payload_b64"));
+          const obj = JSON.parse(decoded);
+          resultDiv.innerHTML =
+            "<h3>Base64方式</h3>" +
+            "<p>受信値 (Base64):</p><pre>" + params.get("payload_b64") + "</pre>" +
+            "<p>復元オブジェクト:</p><pre>" + JSON.stringify(obj, null, 2) + "</pre>";
+        }
+      } catch (e) {
+        statusDiv.innerText = "liff.init() でエラー\n" + JSON.stringify(e);
+        statusDiv.classList.add("ng");
+      }
+    })();
+  </script>
 </body>
 </html>
